@@ -4,6 +4,19 @@ import { getEmployeeById, updateEmployee } from '../api/employeeApi'
 import EmployeeForm from '../components/EmployeeForm'
 import styles from './FormPage.module.css'
 
+function getErrorMessage(err) {
+  if (err.response) {
+    const status = err.response.status
+    const message = err.response.data && err.response.data.message
+    if (message) return `Error ${status}: ${message}`
+    if (status === 404) return 'Employee not found (404).'
+    if (status === 500) return 'Server error (500). Please try again later.'
+    return `Request failed with status ${status}.`
+  }
+  if (err.request) return 'No response from server. Check your connection.'
+  return err.message || 'An unexpected error occurred.'
+}
+
 function EditEmployeePage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -18,7 +31,7 @@ function EditEmployeePage() {
         const data = await getEmployeeById(id)
         setEmployee(data)
       } catch (err) {
-        setError('Failed to load employee data.')
+        setError(getErrorMessage(err))
       } finally {
         setLoading(false)
       }
@@ -33,7 +46,7 @@ function EditEmployeePage() {
       await updateEmployee(id, formData)
       navigate('/')
     } catch (err) {
-      setError('Failed to update employee. Please try again.')
+      setError(getErrorMessage(err))
     } finally {
       setSubmitting(false)
     }
