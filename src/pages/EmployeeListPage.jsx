@@ -5,10 +5,24 @@ import styles from './EmployeeListPage.module.css'
 
 const PAGE_SIZE = 8
 
+function getErrorMessage(err) {
+  if (err.response) {
+    const status = err.response.status
+    const message = err.response.data && err.response.data.message
+    if (message) return `Error ${status}: ${message}`
+    if (status === 404) return 'Resource not found (404).'
+    if (status === 500) return 'Server error (500). Please try again later.'
+    return `Request failed with status ${status}.`
+  }
+  if (err.request) return 'No response from server. Check your connection.'
+  return err.message || 'An unexpected error occurred.'
+}
+
 function EmployeeListPage() {
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [deletingId, setDeletingId] = useState(null)
   const [search, setSearch] = useState('')
   const [sortField, setSortField] = useState('employee_name')
   const [sortOrder, setSortOrder] = useState('asc')
@@ -26,7 +40,7 @@ function EmployeeListPage() {
       const data = await getAllEmployees()
       setEmployees(data)
     } catch (err) {
-      setError('Failed to load employees. Please try again.')
+      setError(getErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -34,11 +48,30 @@ function EmployeeListPage() {
 
   async function handleDelete(id) {
     if (!window.confirm('Are you sure you want to delete this employee?')) return
+    setDeletingId(id)
+    setError('')
     try {
       await deleteEmployee(id)
-      setEmployees((prev) => prev.filter((emp) => emp.id !== id))
+      setEmployees((prev) => {
+        const updated = prev.filter((emp) => emp.id !== id)
+        const newTotalPages = Math.ceil(
+          updated.filter((emp) => {
+            const matchesSearch = emp.employee_name
+              .toLowerCase()
+              .includes(search.toLowerCase())
+            const matchesAge = filterAge
+              ? Number(emp.employee_age) === Number(filterAge)
+              : true
+            return matchesSearch && matchesAge
+          }).length / PAGE_SIZE
+        )
+        setCurrentPage((p) => Math.min(p, Math.max(newTotalPages, 1)))
+        return updated
+      })
     } catch (err) {
-      setError('Failed to delete employee. Please try again.')
+      setError(getErrorMessage(err))
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -48,7 +81,7 @@ function EmployeeListPage() {
         .toLowerCase()
         .includes(search.toLowerCase())
       const matchesAge = filterAge
-        ? emp.employee_age === Number(filterAge)
+        ? Number(emp.employee_age) === Number(filterAge)
         : true
       return matchesSearch && matchesAge
     })
@@ -64,10 +97,11 @@ function EmployeeListPage() {
       return 0
     })
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const totalPages = Math.max(Math.ceil(filtered.length / PAGE_SIZE), 1)
+  const safePage = Math.min(currentPage, totalPages)
   const paginated = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE
   )
 
   function handleSearchChange(e) {
@@ -126,30 +160,34 @@ function EmployeeListPage() {
 
       {error && <p className={styles.error}>{error}</p>}
 
-      {!loading && !error && paginated.length === 0 && (
+      {!loading && !error && filtered.length === 0 && (
         <p className={styles.message}>No employees found.</p>
       )}
 
-      {!loading && !error && paginated.length > 0 && (
+      {!loading && filtered.length > 0 && (
         <>
-          <EmployeeTable employees={paginated} onDelete={handleDelete} />
+          <EmployeeTable
+            employees={paginated}
+            onDelete={handleDelete}
+            deletingId={deletingId}
+          />
 
           <div className={styles.pagination}>
             <button
               onClick={() => setCurrentPage((p) => p - 1)}
-              disabled={currentPage === 1}
+              disabled={safePage === 1}
               className={styles.pageBtn}
             >
               Previous
             </button>
 
             <span className={styles.pageInfo}>
-              Page {currentPage} of {totalPages}
+              Page {safePage} of {totalPages}
             </span>
 
             <button
               onClick={() => setCurrentPage((p) => p + 1)}
-              disabled={currentPage === totalPages}
+              disabled={safePage === totalPages}
               className={styles.pageBtn}
             >
               Next
