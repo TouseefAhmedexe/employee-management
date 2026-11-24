@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import styles from './EmployeeTable.module.css'
 
-function EmployeeTable({ employees, onDelete }) {
+function EmployeeTable({ employees, onDelete, deletingId }) {
   const navigate = useNavigate()
 
   return (
@@ -26,14 +26,16 @@ function EmployeeTable({ employees, onDelete }) {
               <button
                 className={styles.editBtn}
                 onClick={() => navigate(`/edit/${emp.id}`)}
+                disabled={deletingId === emp.id}
               >
                 Edit
               </button>
               <button
                 className={styles.deleteBtn}
                 onClick={() => onDelete(emp.id)}
+                disabled={deletingId === emp.id}
               >
-                Delete
+                {deletingId === emp.id ? 'Deleting...' : 'Delete'}
               </button>
             </td>
           </tr>
